@@ -2,8 +2,8 @@
 #include <algorithm>
 #include <cctype>
 #include <cerrno>
-#include <cstdio>
 #include <cmath>
+#include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <fcntl.h>
@@ -50,14 +50,15 @@ static bool writeFileAtomic(const std::string &path,
   }
   mode_t mode = 0644;
   bool had_mode = false;
-  struct stat st {};
+  struct stat st{};
   if (stat(target.c_str(), &st) == 0) {
     mode = st.st_mode & 07777;
     had_mode = true;
   }
 
   const std::string tmp = target + ".tmp." + std::to_string(getpid());
-  const int fd = open(tmp.c_str(), O_WRONLY | O_CREAT | O_TRUNC | O_CLOEXEC, mode);
+  const int fd =
+      open(tmp.c_str(), O_WRONLY | O_CREAT | O_TRUNC | O_CLOEXEC, mode);
   if (fd < 0)
     return false;
 
@@ -120,8 +121,9 @@ static bool sameValue(const std::string &file_val, const std::string &new_val) {
   if (*e1 != '\0' && *e1 != '#')
     return false;
   const std::size_t dot = new_val.find('.');
-  const int decimals =
-      (dot == std::string::npos) ? 0 : static_cast<int>(new_val.size() - dot - 1);
+  const int decimals = (dot == std::string::npos)
+                           ? 0
+                           : static_cast<int>(new_val.size() - dot - 1);
   double tol = 0.5;
   for (int i = 0; i < decimals; ++i)
     tol /= 10.0;
@@ -168,7 +170,7 @@ std::string Config::statePath() {
 static bool moveLegacyDir(const std::string &base) {
   const std::string from = base + "/cava-viz";
   const std::string to = base + "/viz";
-  struct stat st {};
+  struct stat st{};
   if (lstat(to.c_str(), &st) == 0)
     return false; // new location already present
   if (stat(from.c_str(), &st) != 0 || !S_ISDIR(st.st_mode))
@@ -210,10 +212,9 @@ static float parseFloat(const char *key, const char *val, float fallback) {
   while (end && *end && std::isspace(static_cast<unsigned char>(*end)))
     ++end;
   if (!end || end == val || *end != '\0' || errno != 0) {
-    std::fprintf(
-        stderr,
-        "viz: config: '%s' expects a number, got '%s' — using %.3f\n", key,
-        val, static_cast<double>(fallback));
+    std::fprintf(stderr,
+                 "viz: config: '%s' expects a number, got '%s' — using %.3f\n",
+                 key, val, static_cast<double>(fallback));
     return fallback;
   }
   return f;
@@ -277,7 +278,7 @@ bool Config::load() {
   {                                                                            \
     auto _c = std::clamp(field, (lo), (hi));                                   \
     if (_c != field)                                                           \
-      std::fprintf(stderr, "viz: '%s' out of range, clamped.\n", #field); \
+      std::fprintf(stderr, "viz: '%s' out of range, clamped.\n", #field);      \
     field = _c;                                                                \
   }
   // theme: only enforce non-negative; the upper bound depends on how many
@@ -371,9 +372,8 @@ void Config::save() const {
         if (kvs[i].first == k) {
           // Keep the user's line verbatim unless the value really changed,
           // and never touch a key that is overridden on the command line.
-          const bool pinned_by_cli =
-              (kvs[i].first == "theme" && cli_theme) ||
-              (kvs[i].first == "fps" && cli_fps);
+          const bool pinned_by_cli = (kvs[i].first == "theme" && cli_theme) ||
+                                     (kvs[i].first == "fps" && cli_fps);
           if (!pinned_by_cli && !sameValue(vbuf, kvs[i].second))
             line = kvs[i].first + " = " + kvs[i].second + "\n";
           written[i] = true;
@@ -439,7 +439,8 @@ void Config::save() const {
              "──────────────────────────────────────────────\n");
   fprintf(f, "# gravity: fall speed (0.1=slow, 1.0=default, 5.0=instant)\n");
   fprintf(f, "gravity        = %.2f\n", static_cast<double>(gravity));
-  fprintf(f, "# monstercat: bar spread (0=off, 1.0-5.0; values in (0,1) act as 1.0; 1.5=default)\n");
+  fprintf(f, "# monstercat: bar spread (0=off, 1.0-5.0; values in (0,1) act as "
+             "1.0; 1.5=default)\n");
   fprintf(f, "monstercat     = %.2f\n", static_cast<double>(monstercat));
   fprintf(f, "# rise_factor: attack smoothing (0.0=instant, 0.95=very slow)\n");
   fprintf(f, "rise_factor    = %.2f\n", static_cast<double>(rise_factor));

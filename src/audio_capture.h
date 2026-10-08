@@ -12,8 +12,8 @@ public:
   /// (count = frames * channels).  Pointer + length instead of a std::vector
   /// so the (real-time) PipeWire thread never allocates; the pointer is only
   /// valid for the duration of the call.
-  using AudioCallback =
-      std::function<void(const float *samples, std::size_t count, int channels)>;
+  using AudioCallback = std::function<void(const float *samples,
+                                           std::size_t count, int channels)>;
 
   /// Pseudo source name meaning "the default MICROPHONE / default input
   /// device" (as opposed to "" = what's playing, i.e. the default output's

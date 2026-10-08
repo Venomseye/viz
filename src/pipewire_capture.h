@@ -34,8 +34,8 @@ private:
   struct pw_core *core_{nullptr};
   struct pw_stream *stream_{nullptr};
 
-  struct spa_hook stream_listener_ {};
-  struct pw_stream_events stream_events_ {};
+  struct spa_hook stream_listener_{};
+  struct pw_stream_events stream_events_{};
 
   std::thread thread_;
   std::atomic<bool> running_{false};

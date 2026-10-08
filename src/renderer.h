@@ -1,4 +1,5 @@
 #pragma once
+#include "terminal_caps.h"
 #include "user_theme.h"
 #include <algorithm>
 #include <chrono>
@@ -43,15 +44,26 @@ public:
   static constexpr int HUD_ROWS = 2;
 
   // Beat flash: avg of bars 0-3 must reach this to trigger A_BOLD overlay.
-  static constexpr float BEAT_THRESHOLD = 0.55f;     // flash ON at/above
-  static constexpr float BEAT_THRESHOLD_OFF = 0.45f; // flash OFF below (hysteresis)
+  static constexpr float BEAT_THRESHOLD = 0.55f; // flash ON at/above
+  static constexpr float BEAT_THRESHOLD_OFF =
+      0.45f; // flash OFF below (hysteresis)
   // Colour cycle: hue rotation speed in degrees per second.
   static constexpr float HUE_DEG_PER_SEC = 30.0f;
+  static constexpr float HUE_REBUILD_DEG = 3.0f; // palette rebuild step
 
   Renderer();
   ~Renderer();
   Renderer(const Renderer &) = delete;
   Renderer &operator=(const Renderer &) = delete;
+
+  /// Choose the colour strategy BEFORE init().  Default: ColorMode::Auto.
+  void setColorMode(ColorMode m) { color_mode_ = m; }
+  ColorMode colorMode() const { return color_mode_; }
+  /// What init() ended up using: "truecolor", "256" or "basic" (for --check /
+  /// HUD).
+  const char *colorStrategy() const {
+    return can_rgb_ ? "truecolor" : (basic_colors_ ? "basic" : "256");
+  }
 
   bool init();
   /// False if no UTF-8 locale could be activated (bars may render wrongly).
@@ -138,6 +150,15 @@ private:
 
   bool initialized_{false};
   bool can_rgb_{false};
+  bool basic_colors_{false}; // 8-colour branch (COLORS<256 or --color=basic)
+  ColorMode color_mode_{ColorMode::Auto};
+  // Last RGB sent to the terminal for each palette slot.  init_color() is a
+  // terminal escape sequence; skipping unchanged slots makes theme/HUD
+  // rebuilds nearly free.  Cleared whenever the terminal state is reset.
+  std::vector<short> pal_cache_; // r,g,b triples, -1 = unknown
+  void invalidatePaletteCache() { pal_cache_.clear(); }
+  void updateColorCaps();
+  void setPaletteColor(short idx, short r, short g, short b);
   int theme_abs_{0}; // 0..COUNT-1 = built-in, COUNT+ = user theme index
   int bar_w_{BAR_W_DEFAULT};
   int gap_w_{1};
@@ -175,9 +196,6 @@ private:
   void invalidatePrev();
   void rebuildColors();
   void applyNcursesSettings();
-  void applyTermOverride() noexcept;
-
-  static bool detectTruecolor() noexcept;
 
   int gradPair(float frac) const noexcept;
   int hudPair(int lv) const noexcept;

@@ -294,38 +294,27 @@ static RGB hsvToRgb(float h, float s, float v) noexcept {
           static_cast<short>(b * 1000)};
 }
 
-// ── Truecolor detection
-// ───────────────────────────────────────────────────────
-bool Renderer::detectTruecolor() noexcept {
-  const char *ct = std::getenv("COLORTERM");
-  if (ct && (strcmp(ct, "truecolor") == 0 || strcmp(ct, "24bit") == 0))
-    return true;
-  if (std::getenv("KONSOLE_VERSION"))
-    return true;
-  if (std::getenv("KITTY_WINDOW_ID"))
-    return true;
-  if (std::getenv("VTE_VERSION"))
-    return true;
-  if (std::getenv("WT_SESSION"))
-    return true;
-  if (std::getenv("ITERM_SESSION_ID"))
-    return true;
-  return false;
-}
-
-// Override TERM to xterm-direct before initscr() on truecolor terminals whose
-// default TERM=xterm-256color terminfo lacks the "ccc" capability.  Without
-// this, can_change_color() returns false and every init_color() call silently
-// returns ERR, leaving colour pairs at the raw xterm-256 cube values.
-void Renderer::applyTermOverride() noexcept {
-  if (!detectTruecolor())
-    return;
-  const char *term = std::getenv("TERM");
-  if (!term)
-    return;
-  if (strstr(term, "256color") || strcmp(term, "xterm") == 0 ||
-      strcmp(term, "screen") == 0)
-    setenv("TERM", "xterm-direct", 1);
+// ── Colour capability setup ──────────────────────────────────────────────────
+// Decided in terminal_caps.cpp (unit-tested).  After initscr(), work out which
+// strategy the terminal really supports.
+void Renderer::updateColorCaps() {
+  const bool can_redefine = (COLORS >= 256) && can_change_color();
+  switch (color_mode_) {
+  case ColorMode::Palette256:
+    can_rgb_ = false;
+    basic_colors_ = (COLORS < 256);
+    break;
+  case ColorMode::Basic:
+    can_rgb_ = false;
+    basic_colors_ = true;
+    break;
+  case ColorMode::Auto:
+  case ColorMode::TrueColor:
+    can_rgb_ = can_redefine;
+    basic_colors_ = (COLORS < 256);
+    break;
+  }
+  invalidatePaletteCache();
 }
 
 Renderer::Renderer() { last_frame_tp_ = Clock::now(); }
@@ -345,7 +334,13 @@ void Renderer::applyNcursesSettings() {
 bool Renderer::init() {
   utf8_ok_ = initUtf8Locale(); // must precede initscr()
   set_escdelay(20);
-  applyTermOverride(); // must precede initscr()
+  {
+    // Only ever switches TERM to xterm-direct if that terminfo entry exists
+    // (otherwise initscr() would fail outright); see terminal_caps.h.
+    const std::string t = termOverride(color_mode_);
+    if (!t.empty())
+      setenv("TERM", t.c_str(), 1);
+  }
   initscr();
   applyNcursesSettings();
   if (!has_colors()) {
@@ -354,7 +349,7 @@ bool Renderer::init() {
   }
   start_color();
   use_default_colors();
-  can_rgb_ = (COLORS >= 256) && can_change_color();
+  updateColorCaps();
   grad_steps_ = GRAD_STEPS_MAX;
   rebuildColors();
   last_change_tp_ = Clock::now();
@@ -369,7 +364,7 @@ void Renderer::handleResize() {
   clear();
   start_color();
   use_default_colors();
-  can_rgb_ = (COLORS >= 256) && can_change_color();
+  updateColorCaps(); // also drops the palette cache: the terminal was reset
   grad_steps_ = GRAD_STEPS_MAX;
   applyNcursesSettings();
   rebuildColors();
@@ -392,6 +387,21 @@ void Renderer::handleResize() {
 // GAMMA = 1.0 (linear) gives the most uniform per-row colour step size,
 // minimising worst-case banding.
 //
+// init_color() only when the slot's RGB actually changed since we last sent it.
+void Renderer::setPaletteColor(short idx, short r, short g, short b) {
+  const std::size_t base = static_cast<std::size_t>(idx) * 3;
+  if (pal_cache_.size() < base + 3)
+    pal_cache_.resize(base + 3, -1);
+  if (pal_cache_[base] == r && pal_cache_[base + 1] == g &&
+      pal_cache_[base + 2] == b)
+    return;
+  if (init_color(idx, r, g, b) == OK) {
+    pal_cache_[base] = r;
+    pal_cache_[base + 1] = g;
+    pal_cache_[base + 2] = b;
+  }
+}
+
 void Renderer::rebuildColors() {
   static constexpr float GAMMA = 1.00f;
 
@@ -426,10 +436,10 @@ void Renderer::rebuildColors() {
         rgb = lerpRGB(rgb, hue, hue_a);
       }
       const short ci = static_cast<short>(COLOR_BASE + i);
-      init_color(ci, rgb.r, rgb.g, rgb.b);
+      setPaletteColor(ci, rgb.r, rgb.g, rgb.b);
       init_pair(i + 1, ci, -1);
     }
-  } else if (COLORS >= 256) {
+  } else if (!basic_colors_) {
     // Same gradient as the truecolor path, quantised to the xterm-256 palette
     // (no init_color needed, so this also works on terminals that can't
     // redefine colours).
@@ -458,9 +468,9 @@ void Renderer::rebuildColors() {
     const short hud_ci = static_cast<short>(COLOR_BASE + grad_steps_ + lv);
     if (can_rgb_) {
       RGB rgb = sample(kHF[lv]);
-      init_color(hud_ci, rgb.r, rgb.g, rgb.b);
+      setPaletteColor(hud_ci, rgb.r, rgb.g, rgb.b);
       init_pair(grad_steps_ + 1 + lv, hud_ci, -1);
-    } else if (COLORS >= 256) {
+    } else if (!basic_colors_) {
       const RGB rgb = sample(kHF[lv]);
       init_pair(grad_steps_ + 1 + lv, nearestXterm256(rgb.r, rgb.g, rgb.b), -1);
     } else {
@@ -781,10 +791,11 @@ void Renderer::render(const std::vector<float> &bars_l,
     const float dt =
         std::chrono::duration<float>(now_tp - last_frame_tp_).count();
     hue_offset_ = std::fmod(hue_offset_ + HUE_DEG_PER_SEC * dt, 360.f);
-    // Rebuild color pairs only when the hue has shifted by at least 1°.
-    // At 30 °/s this fires ~30×/s instead of once per frame (~60×/s),
-    // cutting the ncurses init_color/init_pair call count roughly in half.
-    if (std::abs(hue_offset_ - last_rebuild_hue_) >= 1.0f) {
+    // Rebuild the palette only when the hue has moved by HUE_REBUILD_DEG.
+    // Every rebuild can resend ~236 palette colours to the terminal, so at
+    // 30 deg/s a 3 deg step means ~10 rebuilds/s instead of ~30 (a 3 deg shift
+    // of a 38%-weighted hue blend is imperceptible).
+    if (std::abs(hue_offset_ - last_rebuild_hue_) >= HUE_REBUILD_DEG) {
       last_rebuild_hue_ = hue_offset_;
       rebuildColors();
     }

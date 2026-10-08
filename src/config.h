@@ -58,7 +58,8 @@ struct Config {
   void inheritCliOverrides(const Config &prev);
 
   bool load();
-  void save() const; // atomic (tmp + rename); skips the write if nothing changed
+  void
+  save() const; // atomic (tmp + rename); skips the write if nothing changed
 
   // Digest of the bytes save() most recently wrote (0 = never saved).
   // main() compares it with currentFileDigest() on an inotify event to

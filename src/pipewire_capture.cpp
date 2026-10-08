@@ -106,7 +106,7 @@ bool PipeWireCapture::start(AudioCallback cb) {
   struct spa_pod_builder b;
   spa_pod_builder_init(&b, buf, sizeof(buf));
 
-  struct spa_audio_info_raw info {};
+  struct spa_audio_info_raw info{};
   info.format = SPA_AUDIO_FORMAT_F32;
   info.rate = static_cast<uint32_t>(sample_rate_);
   info.channels = static_cast<uint32_t>(channels_);
@@ -215,7 +215,7 @@ void PipeWireCapture::onParamChanged(void *ud, uint32_t id,
   if (!param || id != SPA_PARAM_Format)
     return;
 
-  struct spa_audio_info_raw info {};
+  struct spa_audio_info_raw info{};
   if (spa_format_audio_raw_parse(param, &info) < 0)
     return;
 
