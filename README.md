@@ -132,8 +132,9 @@ viz [OPTIONS]
 | `-t <index>` | Starting theme (0&ndash;11 built-in, 12+ user). Session only, not saved | from config |
 | `-f <n>` | Target FPS. Session only, not saved | from config |
 | `-w` | Fit the bar width to the terminal | off |
+| `--color <mode>` | Colour strategy: `auto`, `truecolor`, `256` or `basic` (see [Terminal support](#terminal-support)) | `auto` |
 | `--list-sources` | List audio sources and exit | |
-| `--check` | Validate config, themes and audio setup, then exit | |
+| `--check` | Validate config, themes, audio and terminal setup, then exit. Options after it (e.g. `--color 256`) are honoured, so you can preview their effect | |
 | `-V` | Print the version and exit | |
 | `-h` | Print help and exit | |
 
@@ -194,7 +195,7 @@ The config file is created on first run at `${XDG_CONFIG_HOME:-~/.config}/viz/co
 | `auto_mono` | `0` | 0 / 1 | Collapse to mono when L and R are nearly identical |
 | `sensitivity` | `1.50` | 0.2&ndash;8.0 | Manual sensitivity |
 | `auto_sens` | `1` | 0 / 1 | Automatic sensitivity |
-| `fps` | `60` | 10&ndash;240 | Target frame rate |
+| `fps` | `60` | 10&ndash;240 | Target frame rate (applies live) |
 
 <details>
 <summary>The file as generated on first run</summary>
@@ -259,7 +260,7 @@ Edits to the config and to files in the themes folder are picked up automaticall
 pkill -USR1 -x viz
 ```
 
-If you change `stereo`, the audio capture restarts to match.
+If you change `stereo`, the audio capture restarts to match; `fps` takes effect immediately.
 
 ## Themes
 
@@ -298,7 +299,9 @@ Each `stop_N` is a position from 0.0 (bottom of a bar) to 1.0 (top) and a `#RRGG
 
 ## Terminal support
 
-- **Truecolor** is detected from `COLORTERM`, and from Konsole and VTE (GNOME Terminal and friends). Elsewhere viz falls back to the nearest colours of the 256-colour palette, or to the 8 basic colours.
+- **Truecolor** is detected from `COLORTERM`, and from Konsole, Kitty, VTE (GNOME Terminal and friends), Windows Terminal and iTerm2. Elsewhere viz falls back to the nearest colours of the 256-colour palette, or to the 8 basic colours. On detection viz may switch `TERM` to `xterm-direct`, but only if that terminfo entry exists on your machine (otherwise ncurses could not start at all).
+- **Override it** with `--color`: `truecolor` forces the exact-RGB path, `256` never redefines colours and uses the fixed xterm palette (the safe choice if colours look wrong or your terminal misbehaves), `basic` uses the 8 ANSI colours.
+- **See what was decided** with `viz --check`: its *Terminal* section shows `TERM`, `COLORTERM`, whether truecolor was detected, whether `xterm-direct` is installed, the chosen `TERM` override and the locale.
 - **UTF-8** is required for the bar glyphs (`▁▂▃▄▅▆▇█`). If your locale isn't UTF-8 (typical over SSH or in containers) viz switches to `C.UTF-8` automatically.
 - Use a font that includes the Unicode *Block Elements* range; most monospace fonts do.
 
@@ -355,9 +358,13 @@ The source is silent. Check `pactl get-default-sink` and `pactl list short sourc
 
 Use a font with Unicode block characters and make sure your terminal is set to UTF-8. Over SSH or in a container try `LANG=C.UTF-8 viz`.
 
-**The gradient looks banded or only a few colours**
+**The gradient looks banded, wrong or has only a few colours**
 
-Your terminal may not support truecolor: check that `echo $COLORTERM` prints `truecolor` or `24bit`. Kitty, WezTerm, Alacritty, Konsole, GNOME Terminal and most modern terminals do.
+Run `viz --check` and read its *Terminal* section. Your terminal may not support truecolor: check that `echo $COLORTERM` prints `truecolor` or `24bit`. Kitty, WezTerm, Alacritty, Konsole, GNOME Terminal and most modern terminals do. If it still looks wrong, force the portable mode: `viz --color 256`.
+
+**viz refuses to start with "Error opening terminal"**
+
+Your `TERM` has no terminfo entry on this machine. Set a common one (`TERM=xterm-256color viz`) or install `ncurses-term`.
 
 **`pkill -USR1 -x viz` does nothing**
 
@@ -374,15 +381,21 @@ scripts/format.sh --check                # dry run; non-zero if anything would c
 clang-tidy -p build src/*.cpp            # lint
 ```
 
-The test suites (`ctest`) cover the config parser, user themes, the FFT pipeline, audio helpers and text utilities. CI (`.github/workflows/ci.yml`) runs a formatting check, clang-tidy and a build plus tests in Release and in Debug with AddressSanitizer/UBSan; another workflow builds with each audio backend on its own.
+The test suites (`ctest`) cover the config parser, user themes, the FFT pipeline, audio helpers, text utilities, terminal colour decisions, the command line, the reconnect watchdog, and the file watcher and frame pacing. CI (`.github/workflows/ci.yml`) runs a formatting check, clang-tidy and a build plus tests in Release and in Debug with AddressSanitizer/UBSan; another workflow builds with each audio backend on its own.
 
 If the **Format** check fails, run *Actions &rarr; Format code &rarr; Run workflow*: it formats the branch with the same clang-format as CI and commits the result.
 
 ```text
 src/
-  main.cpp               arguments, main loop, reconnect watchdog, signals
+  main.cpp               signals, --check, and the main loop
+  session.*              runtime state: audio, FFT, renderer, keys, reloads
+  cli_options.*          command-line parsing (pure, unit-tested)
+  watchdog.*             when to reconnect the audio (pure state machine)
+  config_watcher.*       inotify watch of the config and themes folder
+  frame_limiter.*        absolute-deadline frame pacing
   fft_processor.*        CAVA analysis: FFT, EQ, smoothing, auto-sensitivity
-  renderer.*             ncurses drawing, themes, colour handling
+  renderer.*             ncurses drawing, themes, palette handling
+  terminal_caps.*        colour-mode detection, safe TERM override (pure)
   config.*               config + state files, atomic saves, migration
   user_theme.*           .theme parser
   audio_capture.h        capture interface
