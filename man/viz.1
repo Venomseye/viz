@@ -66,6 +66,22 @@ Applies to this session only and is not written to the configuration file.
 .B \-w
 Automatically compute bar width to fill the terminal at startup.
 .TP
+.BI \-\-color " mode"
+How to colour the bars:
+.B auto
+(default; detect),
+.B truecolor
+(redefine palette entries to exact RGB; needs a capable terminal),
+.B 256
+(never redefine colours; map the gradient onto the fixed xterm-256 palette) or
+.B basic
+(the 8 ANSI colours).
+Use
+.B 256
+if the colours look wrong or the terminal misbehaves.
+.B viz \-\-check
+shows what was detected.
+.TP
 .B \-\-list\-sources
 Print all available PipeWire/PulseAudio sources and exit.
 Indicates the default monitor and the last-used source.
