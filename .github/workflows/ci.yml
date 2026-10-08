@@ -1,6 +1,7 @@
 name: CI
 
 on:
+  workflow_dispatch:
   push:
     branches: [main, master, develop]
     paths-ignore:
@@ -24,8 +25,10 @@ permissions:
 jobs:
   # ── 1. Format (check only) ───────────────────────────────────────────────────
   #
-  # CI never rewrites or pushes to your branches.  If this fails, run the
-  # command printed in the log locally, commit, and push.
+  # CI never rewrites or pushes to your branches.  If this fails:
+  #   * easiest : Actions tab -> "Format code" -> Run workflow (commits the fix)
+  #   * or      : download the "format-patch" artifact and run `git apply`
+  #   * or      : run scripts/format.sh locally (needs clang-format-18)
   #
   format:
     name: "Format (clang-format)"
@@ -40,14 +43,21 @@ jobs:
 
       - name: Check formatting
         run: |
-          # fft_processor.* is excluded: it keeps its own (4-space) layout.
-          files=$(find src tests \( -name '*.cpp' -o -name '*.h' \) \
-                    ! -name 'fft_processor.*' | sort)
-          if ! clang-format-18 --style=file --dry-run -Werror $files; then
-            echo "::error::Formatting check failed. Fix locally with:"
-            echo "  find src tests \( -name '*.cpp' -o -name '*.h' \) ! -name 'fft_processor.*' | xargs clang-format --style=file -i"
+          CLANG_FORMAT=clang-format-18 bash scripts/format.sh
+          if ! git diff --quiet; then
+            git diff > format.patch
+            git diff --stat
+            echo "::error::Not clang-format clean. Run the 'Format code' workflow, or apply the 'format-patch' artifact."
             exit 1
           fi
+
+      - name: Upload fix as a patch
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: format-patch
+          path: format.patch
+          if-no-files-found: ignore
 
   # ── 2. Lint ──────────────────────────────────────────────────────────────────
   lint:
@@ -75,9 +85,8 @@ jobs:
 
       - name: Run clang-tidy
         run: |
-          # Lint exactly the translation units CMake compiles (src/app.cpp and
-          # friends that aren't part of the build are not linted), minus the
-          # CAVA algorithm file.
+          # Lint exactly the translation units CMake compiles, minus the CAVA
+          # algorithm file.
           jq -r '.[].file' build/compile_commands.json \
             | grep '/src/' | grep -v 'fft_processor\.cpp' | sort -u \
             | xargs clang-tidy-18 -p build --quiet 2>&1 | tee tidy.log

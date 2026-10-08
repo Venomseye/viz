@@ -1,0 +1,44 @@
+name: Format code
+
+# One-click fixer for the "Format (clang-format)" check in ci.yml.
+# Actions tab -> "Format code" -> Run workflow (pick your branch).
+# It runs the same clang-format-18 as the check, commits the result to the
+# branch you ran it on, and pushes.
+#
+# Notes:
+#   * Commits pushed with the built-in GITHUB_TOKEN do not start other
+#     workflows, so afterwards re-run CI with "Actions -> CI -> Run workflow".
+#   * If the branch is protected against direct pushes, run it on a feature
+#     branch and open a pull request instead.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  format:
+    name: clang-format
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install clang-format
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends clang-format-18
+
+      - name: Format
+        run: CLANG_FORMAT=clang-format-18 bash scripts/format.sh
+
+      - name: Commit and push if anything changed
+        run: |
+          if git diff --quiet; then
+            echo "Already formatted - nothing to commit."
+            exit 0
+          fi
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -am "style: apply clang-format"
+          git push

@@ -61,22 +61,27 @@ jobs:
           file build/viz
           ldd  build/viz
 
-      # Pack binary + helper scripts into a relocatable tarball.
-      # Layout inside the archive mirrors a typical local install:
-      #   cava-viz-vX.Y.Z-linux-x86_64/
-      #     viz
-      #     install.sh
+      # Pack the prebuilt binary with everything install.sh needs to install it.
+      # (The repo's top-level install.sh builds from source and cannot work
+      # inside a tarball that has no sources, so a dedicated installer is
+      # shipped under the same name.)
+      #   viz-vX.Y.Z-linux-x86_64/
+      #     viz  viz.1  completions/  examples/  LICENSE  README.md
+      #     install.sh    (scripts/install-prebuilt.sh)
       #     uninstall.sh
-      #     README  (if present)
       - name: Package tarball
         run: |
           VERSION="${{ github.ref_name }}"
-          PKG="cava-viz-${VERSION}-linux-x86_64"
-          mkdir -p "${PKG}"
-          cp build/viz          "${PKG}/"
-          cp install.sh         "${PKG}/"
-          cp uninstall.sh       "${PKG}/"
-          [ -f README.md ] && cp README.md "${PKG}/" || true
+          PKG="viz-${VERSION}-linux-x86_64"
+          mkdir -p "${PKG}/completions" "${PKG}/examples"
+          cp build/viz                       "${PKG}/"
+          cp man/viz.1                       "${PKG}/"
+          cp completions/viz.bash completions/viz.zsh completions/viz.fish \
+                                             "${PKG}/completions/"
+          cp examples/*.theme                "${PKG}/examples/"
+          cp LICENSE README.md uninstall.sh  "${PKG}/"
+          cp scripts/install-prebuilt.sh     "${PKG}/install.sh"
+          chmod +x "${PKG}/install.sh" "${PKG}/uninstall.sh"
           tar -czf "${PKG}.tar.gz" "${PKG}"
           sha256sum "${PKG}.tar.gz" > "${PKG}.tar.gz.sha256"
           echo "ASSET=${PKG}.tar.gz" >> "$GITHUB_ENV"
@@ -85,7 +90,7 @@ jobs:
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          name: "cava-viz ${{ github.ref_name }}"
+          name: "viz ${{ github.ref_name }}"
           generate_release_notes: true
           files: |
             ${{ env.ASSET }}
