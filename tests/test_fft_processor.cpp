@@ -42,7 +42,8 @@ static void run(FFTProcessor &fft, int channels, double freq, double amp_l,
     std::vector<float> chunk;
     chunk.reserve(static_cast<size_t>(per_frame) * channels);
     for (int i = 0; i < per_frame; ++i, ++n) {
-      const double v = std::sin(2.0 * PI * freq * static_cast<double>(n) / RATE);
+      const double v =
+          std::sin(2.0 * PI * freq * static_cast<double>(n) / RATE);
       chunk.push_back(static_cast<float>(amp_l * v));
       if (channels == 2)
         chunk.push_back(static_cast<float>(amp_r * v));
@@ -74,7 +75,8 @@ static void test_setter_clamp() {
   fft.setMonstercat(-3.0f);
   CHECK(fft.moncatFactor() == 0.0f, "negative monstercat -> off");
   fft.setMonstercat(0.3f);
-  CHECK(fft.moncatFactor() >= 1.0f, "0<m<1 is raised to >=1.0 (was amplifying)");
+  CHECK(fft.moncatFactor() >= 1.0f,
+        "0<m<1 is raised to >=1.0 (was amplifying)");
   fft.setMonstercat(1.5f);
   CHECK(fft.moncatFactor() == 1.5f, "1.5 unchanged");
   fft.setMonstercat(99.0f);
@@ -147,7 +149,6 @@ static void test_channel_mapping() {
     CHECK(l < r * 0.2f, "right-only tone is (nearly) absent on barsL");
   }
 }
-
 
 // ── helpers for arbitrary per-sample generators ──────────────────────────────
 struct Rng {
@@ -302,7 +303,8 @@ static void test_addsamples_layouts_and_counters() {
       fft.execute(BARS, static_cast<float>(FPS));
     }
     const int pl = argmax(fft.barsL()), pr = argmax(fft.barsR());
-    CHECK(fft.barsL()[pl] > 0.05f, "mono input into stereo processor: L active");
+    CHECK(fft.barsL()[pl] > 0.05f,
+          "mono input into stereo processor: L active");
     CHECK(pl >= 16 && pl <= 24, "mono->stereo: tone still at the right place");
     CHECK(pl == pr, "mono->stereo: L and R peak at the same bar");
     CHECK(std::fabs(fft.barsL()[pl] - fft.barsR()[pr]) < 0.02f,
@@ -328,7 +330,8 @@ static void test_addsamples_layouts_and_counters() {
       fft.execute(BARS, static_cast<float>(FPS));
     }
     const int pk = argmax(fft.barsL());
-    CHECK(fft.barsL()[pk] > 0.05f, "stereo into mono processor: signal present");
+    CHECK(fft.barsL()[pk] > 0.05f,
+          "stereo into mono processor: signal present");
     CHECK(pk >= 16 && pk <= 24, "stereo->mono: tone at the right place");
   }
 }
@@ -362,10 +365,12 @@ static void test_concurrent_producer_consumer() {
          frames < 50) {
     fft.execute(BARS, static_cast<float>(FPS));
     ++frames;
-    if (frames > 2'000'000) break; // safety net
+    if (frames > 2'000'000)
+      break; // safety net
   }
   producer.join();
-  for (int i = 0; i < 60; ++i) fft.execute(BARS, static_cast<float>(FPS));
+  for (int i = 0; i < 60; ++i)
+    fft.execute(BARS, static_cast<float>(FPS));
 
   CHECK(fft.samplesWritten() == static_cast<uint64_t>(CHUNKS) * PER * 2,
         "every sample accepted under concurrent feeding");

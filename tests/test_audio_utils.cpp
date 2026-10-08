@@ -21,9 +21,9 @@ static int g_fail = 0, g_pass = 0;
 
 using Clock = std::chrono::steady_clock;
 static long msSince(Clock::time_point t) {
-  return static_cast<long>(std::chrono::duration_cast<std::chrono::milliseconds>(
-                               Clock::now() - t)
-                               .count());
+  return static_cast<long>(
+      std::chrono::duration_cast<std::chrono::milliseconds>(Clock::now() - t)
+          .count());
 }
 
 int main() {
@@ -64,8 +64,8 @@ int main() {
 
   // Large output is capped, not unbounded.
   {
-    const std::string r = runProcess(
-        {"sh", "-c", "head -c 300000 /dev/zero | tr '\\0' x"}, 3000);
+    const std::string r =
+        runProcess({"sh", "-c", "head -c 300000 /dev/zero | tr '\\0' x"}, 3000);
     CHECK(r.size() <= (1u << 16) + 4096, "output is capped");
   }
 

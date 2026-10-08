@@ -24,8 +24,11 @@ static int g_fail = 0, g_pass = 0;
 static bool wellFormed(const std::string &s) {
   for (std::size_t i = 0; i < s.size();) {
     const unsigned char c = static_cast<unsigned char>(s[i]);
-    std::size_t n = c < 0x80 ? 1 : (c >> 5) == 0x6 ? 2 : (c >> 4) == 0xE ? 3
-                  : (c >> 3) == 0x1E ? 4 : 0;
+    std::size_t n = c < 0x80           ? 1
+                    : (c >> 5) == 0x6  ? 2
+                    : (c >> 4) == 0xE  ? 3
+                    : (c >> 3) == 0x1E ? 4
+                                       : 0;
     if (n == 0 || i + n > s.size())
       return false;
     for (std::size_t k = 1; k < n; ++k)
@@ -44,11 +47,13 @@ int main() {
   CHECK(truncateUtf8("abc", 0).empty(), "zero limit -> empty");
 
   const std::string cafe = "caf\xC3\xA9"; // "café": é is 2 bytes
-  CHECK(truncateUtf8(cafe, 4) == "caf", "cut inside a 2-byte char drops it whole");
+  CHECK(truncateUtf8(cafe, 4) == "caf",
+        "cut inside a 2-byte char drops it whole");
   CHECK(truncateUtf8(cafe, 5) == cafe, "limit at the end keeps it");
 
   const std::string jp = "\xE3\x82\xA4\xE3\x83\xB3"; // 2 x 3-byte chars
-  CHECK(truncateUtf8(jp, 4) == "\xE3\x82\xA4", "cut inside 3-byte char backs up");
+  CHECK(truncateUtf8(jp, 4) == "\xE3\x82\xA4",
+        "cut inside 3-byte char backs up");
   CHECK(truncateUtf8(jp, 2).empty(), "cannot fit even one char -> empty");
 
   const std::string emoji = "a\xF0\x9F\x8E\xB5z"; // a + U+1F3B5 (4 bytes) + z
@@ -57,7 +62,8 @@ int main() {
           "every truncation of a 4-byte char stays well-formed");
 
   // The old behaviour (byte cut) really was broken for such input:
-  CHECK(!wellFormed(cafe.substr(0, 4)), "byte-cutting 'café' at 4 IS malformed");
+  CHECK(!wellFormed(cafe.substr(0, 4)),
+        "byte-cutting 'café' at 4 IS malformed");
 
   // ── locale ──────────────────────────────────────────────────────────────
   const bool ok = initUtf8Locale();
@@ -80,7 +86,8 @@ int main() {
   CHECK(!nextBeatState(true, 0.40f, ON, OFF), "turns off below OFF");
 
   // A signal wobbling around 0.5 must not flicker.
-  const float wobble[] = {0.60f, 0.52f, 0.56f, 0.49f, 0.53f, 0.47f, 0.51f, 0.46f};
+  const float wobble[] = {0.60f, 0.52f, 0.56f, 0.49f,
+                          0.53f, 0.47f, 0.51f, 0.46f};
   int flips_hyst = 0, flips_single = 0;
   bool h = false, s = false;
   for (float v : wobble) {
@@ -95,7 +102,8 @@ int main() {
   CHECK(flips_single >= 4, "single threshold flickers on the same input");
 
   CHECK(lowBandLevel({}) == 0.f, "empty bars -> 0");
-  CHECK(lowBandLevel({0.4f, 0.8f}) > 0.59f && lowBandLevel({0.4f, 0.8f}) < 0.61f,
+  CHECK(lowBandLevel({0.4f, 0.8f}) > 0.59f &&
+            lowBandLevel({0.4f, 0.8f}) < 0.61f,
         "mean of fewer than n bars");
   CHECK(lowBandLevel({1.f, 1.f, 1.f, 1.f, 0.f, 0.f}) == 1.f,
         "only the lowest 4 bars count");

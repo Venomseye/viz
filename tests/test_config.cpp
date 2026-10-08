@@ -10,9 +10,9 @@
 #include <cstdlib>
 #include <cstring>
 #include <filesystem>
-#include <sys/stat.h>
 #include <fstream>
 #include <string>
+#include <sys/stat.h>
 
 namespace fs = std::filesystem;
 
@@ -313,11 +313,11 @@ static void testAtomicSave() {
              true);
 
   // Unchanged save must not touch the file at all (same inode, same bytes).
-  struct stat before {};
+  struct stat before{};
   stat(cfgp.c_str(), &before);
   const std::string text_before = slurp(cfgp);
   c.save();
-  struct stat after {};
+  struct stat after{};
   stat(cfgp.c_str(), &after);
   check_bool("unchanged save does not rewrite the file (same inode)",
              before.st_ino == after.st_ino, true);
@@ -378,10 +378,10 @@ static void testAtomicSave() {
   chmod(cfgp.c_str(), 0600);
   c.theme = 2;
   c.save();
-  struct stat pm {};
+  struct stat pm{};
   stat(cfgp.c_str(), &pm);
-  check_int("file mode preserved across save", static_cast<int>(pm.st_mode & 0777),
-            0600);
+  check_int("file mode preserved across save",
+            static_cast<int>(pm.st_mode & 0777), 0600);
 }
 
 static void testSymlinkedConfig() {
@@ -392,7 +392,9 @@ static void testSymlinkedConfig() {
   const fs::path real_dir = td.path / "dotfiles";
   fs::create_directories(real_dir);
   const fs::path real = real_dir / "viz.conf";
-  { std::ofstream(real) << "theme = 4\n# my note\n"; }
+  {
+    std::ofstream(real) << "theme = 4\n# my note\n";
+  }
   fs::create_symlink(real, cfgp);
 
   Config c;
@@ -401,8 +403,8 @@ static void testSymlinkedConfig() {
   c.theme = 9;
   c.save();
 
-  check_bool("config path is still a symlink after save",
-             fs::is_symlink(cfgp), true);
+  check_bool("config path is still a symlink after save", fs::is_symlink(cfgp),
+             true);
   check_bool("symlink still points at the original target",
              fs::read_symlink(cfgp) == real, true);
   check_bool("target file got the new value",
@@ -417,7 +419,9 @@ static void testCliOverridesNotPersisted() {
   TempDir td;
   const fs::path cfgp = Config::configPath();
   fs::create_directories(cfgp.parent_path());
-  { std::ofstream(cfgp) << "theme = 2\nfps = 45\ngravity = 1.00\n"; }
+  {
+    std::ofstream(cfgp) << "theme = 2\nfps = 45\ngravity = 1.00\n";
+  }
 
   Config c;
   c.load();
@@ -492,9 +496,15 @@ static void testLegacyMigration() {
     const fs::path st_old = td.path / "state" / "cava-viz";
     fs::create_directories(cfg_old / "themes");
     fs::create_directories(st_old);
-    { std::ofstream(cfg_old / "config") << "theme = 5\n# keep me\n"; }
-    { std::ofstream(cfg_old / "themes" / "mine.theme") << "name = Mine\n"; }
-    { std::ofstream(st_old / "state") << "last_source = my.monitor\n"; }
+    {
+      std::ofstream(cfg_old / "config") << "theme = 5\n# keep me\n";
+    }
+    {
+      std::ofstream(cfg_old / "themes" / "mine.theme") << "name = Mine\n";
+    }
+    {
+      std::ofstream(st_old / "state") << "last_source = my.monitor\n";
+    }
 
     check_int("two directories migrated", Config::migrateLegacyDirs(), 2);
     check_bool("old config dir is gone", !fs::exists(cfg_old), true);
@@ -524,15 +534,19 @@ static void testLegacyMigration() {
     const fs::path cfg_new = td.path / "config" / "viz";
     fs::create_directories(cfg_old);
     fs::create_directories(cfg_new);
-    { std::ofstream(cfg_old / "config") << "theme = 9\n"; }
-    { std::ofstream(cfg_new / "config") << "theme = 2\n"; }
+    {
+      std::ofstream(cfg_old / "config") << "theme = 9\n";
+    }
+    {
+      std::ofstream(cfg_new / "config") << "theme = 2\n";
+    }
 
     check_int("nothing moved when viz/ exists", Config::migrateLegacyDirs(), 0);
     Config c;
     c.load();
     check_int("new location wins", c.theme, 2);
-    check_bool("legacy dir left untouched",
-               fs::exists(cfg_old / "config"), true);
+    check_bool("legacy dir left untouched", fs::exists(cfg_old / "config"),
+               true);
   }
 
   // Nothing to migrate: no-op and no directories invented.
@@ -549,7 +563,9 @@ static void testLegacyMigration() {
     TempDir td;
     const fs::path real = td.path / "dotfiles" / "viz-config";
     fs::create_directories(real);
-    { std::ofstream(real / "config") << "theme = 7\n"; }
+    {
+      std::ofstream(real / "config") << "theme = 7\n";
+    }
     fs::create_directories(td.path / "config");
     fs::create_directory_symlink(real, td.path / "config" / "cava-viz");
 
