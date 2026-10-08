@@ -45,6 +45,12 @@ set(CORE_SOURCES
     src/user_theme.cpp
     src/audio_utils.cpp
     src/text_utils.cpp
+    src/terminal_caps.cpp
+    src/cli_options.cpp
+    src/watchdog.cpp
+    src/config_watcher.cpp
+    src/frame_limiter.cpp
+    src/session.cpp
 )
 
 add_executable(viz ${CORE_SOURCES})
@@ -215,6 +221,23 @@ if(BUILD_TESTS)
     set_target_properties(test_text_utils PROPERTIES
         CXX_STANDARD 17 CXX_STANDARD_REQUIRED ON)
     add_test(NAME text_utils COMMAND test_text_utils)
+
+    # Pure-logic suites (no audio device, no ncurses): colour capability
+    # decisions, command line, reconnect watchdog, file watcher + frame pacing.
+    function(add_viz_test name)
+        add_executable(test_${name} tests/test_${name}.cpp ${ARGN})
+        target_include_directories(test_${name} PRIVATE ${CMAKE_SOURCE_DIR}/src)
+        target_link_libraries(test_${name} PRIVATE Threads::Threads)
+        target_compile_options(test_${name} PRIVATE -Wall -Wextra -Wpedantic)
+        set_target_properties(test_${name} PROPERTIES
+            CXX_STANDARD 17 CXX_STANDARD_REQUIRED ON)
+        add_test(NAME ${name} COMMAND test_${name})
+    endfunction()
+
+    add_viz_test(terminal_caps src/terminal_caps.cpp)
+    add_viz_test(cli_options   src/cli_options.cpp src/terminal_caps.cpp src/config.cpp)
+    add_viz_test(watchdog      src/watchdog.cpp)
+    add_viz_test(loop_support  src/config_watcher.cpp src/frame_limiter.cpp src/config.cpp)
 endif()
 
 # ── Summary ────────────────────────────────────────────────────────────────────
